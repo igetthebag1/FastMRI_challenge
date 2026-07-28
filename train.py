@@ -34,6 +34,10 @@ def parse():
     parser.add_argument('--input-key', type=str, default='kspace', help='Name of input key')
     parser.add_argument('--target-key', type=str, default='image_label', help='Name of target key')
     parser.add_argument('--max-key', type=str, default='max', help='Name of max key in attributes')
+    parser.add_argument('--roi-loss-weight', type=float, default=0.5,
+                        help='Weight for the annotation-aware ROI L1 loss')
+    parser.add_argument('--roi-margin', type=int, default=8,
+                        help='Context pixels around each lesion box for ROI loss')
     parser.add_argument('--seed', type=int, default=430, help='Fix random seed')
 
     args = parser.parse_args()

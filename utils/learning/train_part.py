@@ -9,7 +9,7 @@ import copy
 from collections import defaultdict
 from utils.data.load_data import create_data_loaders
 from utils.common.utils import save_reconstructions, ssim_loss
-from utils.common.loss_function import SSIMLoss
+from utils.common.loss_function import SSIMLoss, masked_l1_loss
 from utils.model.varnet import VarNet
 
 import os
@@ -26,14 +26,17 @@ def train_epoch(args, epoch, model, data_loader, optimizer, loss_type, device):
     for iter, data in enumerate(data_loader):
         if max_train_iters is not None and iter >= max_train_iters:
             break
-        mask, kspace, target, maximum, _, _ = data
+        mask, kspace, target, maximum, _, _, roi_mask = data
         mask = mask.to(device=device, non_blocking=True)
         kspace = kspace.to(device=device, non_blocking=True)
         target = target.to(device=device, non_blocking=True)
         maximum = maximum.to(device=device, non_blocking=True)
+        roi_mask = roi_mask.to(device=device, non_blocking=True)
 
         output = model(kspace, mask)
-        loss = loss_type(output, target, maximum)
+        global_loss = loss_type(output, target, maximum)
+        roi_loss = masked_l1_loss(output, target, roi_mask, maximum)
+        loss = global_loss + args.roi_loss_weight * roi_loss
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -59,7 +62,7 @@ def validate(args, model, data_loader, device):
 
     with torch.no_grad():
         for iter, data in enumerate(data_loader):
-            mask, kspace, target, _, fnames, slices = data
+            mask, kspace, target, _, fnames, slices, _ = data
             kspace = kspace.to(device=device, non_blocking=True)
             mask = mask.to(device=device, non_blocking=True)
             output = model(kspace, mask)

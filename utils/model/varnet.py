@@ -216,6 +216,7 @@ class VarNet(nn.Module):
         sens_pools: int = 4,
         chans: int = 18,
         pools: int = 4,
+        hard_dc: bool = True,
     ):
         """
         Args:
@@ -230,6 +231,8 @@ class VarNet(nn.Module):
         """
         super().__init__()
 
+        self.hard_dc = hard_dc
+
         self.sens_net = SensitivityModel(sens_chans, sens_pools)
         self.cascades = nn.ModuleList(
             [VarNetBlock(NormUnet(chans, pools)) for _ in range(num_cascades)]
@@ -241,6 +244,11 @@ class VarNet(nn.Module):
 
         for cascade in self.cascades:
             kspace_pred = cascade(kspace_pred, masked_kspace, mask, sens_maps)
+            if self.hard_dc:
+                # Acquired samples remain exactly equal to the measurements.
+                kspace_pred = torch.where(
+                    mask.bool(), masked_kspace, kspace_pred
+                )
         result = fastmri.rss(fastmri.complex_abs(fastmri.ifft2c(kspace_pred)), dim=1)
         result = center_crop(result, 384, 384)
         return result
@@ -283,7 +291,9 @@ class VarNetBlock(nn.Module):
         sens_maps: torch.Tensor,
     ) -> torch.Tensor:
         zero = torch.zeros(1, 1, 1, 1, 1).to(current_kspace)
-        soft_dc = torch.where(mask, current_kspace - ref_kspace, zero) * self.dc_weight
+        soft_dc = torch.where(
+            mask.bool(), current_kspace - ref_kspace, zero
+        ) * self.dc_weight
         model_term = self.sens_expand(
             self.model(self.sens_reduce(current_kspace, sens_maps)), sens_maps
         )

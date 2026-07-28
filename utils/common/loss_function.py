@@ -52,3 +52,21 @@ class SSIMLoss(nn.Module):
         S = (A1 * A2) / D
 
         return 1 - S.mean()
+
+
+def masked_l1_loss(pred, target, roi_mask, data_range, eps=1e-8):
+    """Normalized L1 loss concentrated on annotated lesion regions."""
+    if roi_mask is None:
+        return pred.new_zeros(())
+
+    roi_mask = roi_mask.to(device=pred.device, dtype=pred.dtype)
+    if roi_mask.dim() == 2:
+        roi_mask = roi_mask.unsqueeze(0)
+    denom = roi_mask.sum()
+    if denom <= eps:
+        return pred.new_zeros(())
+
+    scale = data_range.to(device=pred.device, dtype=pred.dtype).reshape(-1, 1, 1)
+    scale = scale.clamp_min(eps)
+    error = (pred - target).abs() / scale
+    return (error * roi_mask).sum() / denom

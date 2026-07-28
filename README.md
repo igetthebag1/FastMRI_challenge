@@ -87,6 +87,21 @@
 * ```recon_eval.py```와 ```utils/common/metrics.py```는 운영자가 그대로 다시 실행하는 **채점/시간측정 harness**이므로 수정하지 않는 것을 전제로 합니다. 모델 정의와 reconstruction 방식은 ```utils/model/```과 ```utils/learning/test_part.py```에서 자유롭게 수정하면 됩니다.
 * reconstruction과 평가를 나눠서 실행하고 싶다면 ```reconstruct.py``` → ```leaderboard_eval.py``` 순서도 그대로 사용할 수 있습니다. (참고용)
 
+### ROI-aware VarNet variant
+
+This branch keeps the E2E-VarNet cascade structure and adds two safeguards:
+
+* It reads fastMRI+ lesion annotations from `attrs['annotations']` and applies a normalized auxiliary L1 loss to the current slice's box plus a lower-weight context ring. The bbox is used during training only; inference still receives only k-space and the sampling mask.
+* It applies hard data consistency after every cascade, so acquired k-space samples remain exactly equal to the measurements. The learned regularizer can therefore change only unmeasured samples.
+
+Example:
+
+```bash
+python train.py --roi-loss-weight 0.5 --roi-margin 8
+```
+
+Use `--roi-loss-weight 0` for the global-loss-only ablation. The fixed `recon_eval.py` harness is unchanged.
+
 ## 4. How to set?
 (python 3.12.9)
 ```bash

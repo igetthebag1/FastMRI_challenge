@@ -87,7 +87,11 @@ def create_data_loaders(data_path, args, shuffle=False, isforward=False):
         target_key_ = -1
     data_storage = SliceData(
         root=data_path,
-        transform=DataTransform(isforward, max_key_),
+        transform=DataTransform(
+            isforward,
+            max_key_,
+            roi_margin=getattr(args, "roi_margin", 8),
+        ),
         input_key=args.input_key,
         target_key=target_key_,
         forward = isforward
