@@ -1,7 +1,7 @@
 import h5py
 import random
 from utils.data.transforms import DataTransform
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, Subset
 from pathlib import Path
 import numpy as np
 
@@ -64,6 +64,20 @@ class SliceData(Dataset):
         return self.transform(mask, input, target, attrs, kspace_fname.name, dataslice)
 
 
+def _sample_dataset(dataset, sample_rate, seed):
+    if sample_rate is None or sample_rate >= 1.0:
+        return dataset
+    if sample_rate <= 0.0:
+        raise ValueError("sample_rate should be greater than 0 and less than or equal to 1.")
+
+    num_examples = len(dataset)
+    num_samples = max(1, int(num_examples * sample_rate))
+    rng = random.Random(seed)
+    indices = list(range(num_examples))
+    rng.shuffle(indices)
+    return Subset(dataset, sorted(indices[:num_samples]))
+
+
 def create_data_loaders(data_path, args, shuffle=False, isforward=False):
     if isforward == False:
         max_key_ = args.max_key
@@ -78,6 +92,15 @@ def create_data_loaders(data_path, args, shuffle=False, isforward=False):
         target_key=target_key_,
         forward = isforward
     )
+    if not isforward:
+        if shuffle:
+            sample_rate = getattr(args, "train_sample_rate", 1.0)
+            subset_seed = getattr(args, "seed", 0)
+        else:
+            sample_rate = getattr(args, "val_sample_rate", 1.0)
+            subset_seed = getattr(args, "seed", 0) + 1
+        data_storage = _sample_dataset(data_storage, sample_rate, subset_seed)
+        print(f"Using {len(data_storage)} examples from {data_path}")
 
     data_loader = DataLoader(
         dataset=data_storage,

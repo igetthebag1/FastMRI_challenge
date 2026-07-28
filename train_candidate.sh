@@ -1,0 +1,12 @@
+python train.py \
+  -b 1 \
+  -e 3 \
+  -l 0.001 \
+  -r 10 \
+  -n 'candidate_test' \
+  -t '/root/Data/train/' \
+  -v '/root/Data/val/' \
+  --train-sample-rate 0.5 \
+  --val-sample-rate 0.5 \
+  --max-train-iters 2000 \
+  --seed 430

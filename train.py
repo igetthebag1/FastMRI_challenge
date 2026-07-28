@@ -24,6 +24,9 @@ def parse():
     parser.add_argument('-n', '--net-name', type=Path, default='test_varnet', help='Name of network')
     parser.add_argument('-t', '--data-path-train', type=Path, default='/Data/train/', help='Directory of train data')
     parser.add_argument('-v', '--data-path-val', type=Path, default='/Data/val/', help='Directory of validation data')
+    parser.add_argument('--train-sample-rate', type=float, default=1.0, help='Fraction of training slices to use')
+    parser.add_argument('--val-sample-rate', type=float, default=1.0, help='Fraction of validation slices to use')
+    parser.add_argument('--max-train-iters', type=int, default=None, help='Maximum training iterations per epoch')
     
     parser.add_argument('--cascade', type=int, default=1, help='Number of cascades | Should be less than 12') ## important hyperparameter
     parser.add_argument('--chans', type=int, default=9, help='Number of channels for cascade U-Net | 18 in original varnet') ## important hyperparameter

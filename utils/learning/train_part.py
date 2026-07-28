@@ -14,18 +14,23 @@ from utils.model.varnet import VarNet
 
 import os
 
-def train_epoch(args, epoch, model, data_loader, optimizer, loss_type):
+def train_epoch(args, epoch, model, data_loader, optimizer, loss_type, device):
     model.train()
     start_epoch = start_iter = time.perf_counter()
+    max_train_iters = getattr(args, "max_train_iters", None)
     len_loader = len(data_loader)
+    if max_train_iters is not None:
+        len_loader = min(len_loader, max_train_iters)
     total_loss = 0.
 
     for iter, data in enumerate(data_loader):
+        if max_train_iters is not None and iter >= max_train_iters:
+            break
         mask, kspace, target, maximum, _, _ = data
-        mask = mask.cuda(non_blocking=True)
-        kspace = kspace.cuda(non_blocking=True)
-        target = target.cuda(non_blocking=True)
-        maximum = maximum.cuda(non_blocking=True)
+        mask = mask.to(device=device, non_blocking=True)
+        kspace = kspace.to(device=device, non_blocking=True)
+        target = target.to(device=device, non_blocking=True)
+        maximum = maximum.to(device=device, non_blocking=True)
 
         output = model(kspace, mask)
         loss = loss_type(output, target, maximum)
@@ -37,7 +42,7 @@ def train_epoch(args, epoch, model, data_loader, optimizer, loss_type):
         if iter % args.report_interval == 0:
             print(
                 f'Epoch = [{epoch:3d}/{args.num_epochs:3d}] '
-                f'Iter = [{iter:4d}/{len(data_loader):4d}] '
+                f'Iter = [{iter:4d}/{len_loader:4d}] '
                 f'Loss = {loss.item():.4g} '
                 f'Time = {time.perf_counter() - start_iter:.4f}s',
             )
@@ -46,7 +51,7 @@ def train_epoch(args, epoch, model, data_loader, optimizer, loss_type):
     return total_loss, time.perf_counter() - start_epoch
 
 
-def validate(args, model, data_loader):
+def validate(args, model, data_loader, device):
     model.eval()
     reconstructions = defaultdict(dict)
     targets = defaultdict(dict)
@@ -55,8 +60,8 @@ def validate(args, model, data_loader):
     with torch.no_grad():
         for iter, data in enumerate(data_loader):
             mask, kspace, target, _, fnames, slices = data
-            kspace = kspace.cuda(non_blocking=True)
-            mask = mask.cuda(non_blocking=True)
+            kspace = kspace.to(device=device, non_blocking=True)
+            mask = mask.to(device=device, non_blocking=True)
             output = model(kspace, mask)
 
             for i in range(output.shape[0]):
@@ -94,8 +99,11 @@ def save_model(args, exp_dir, epoch, model, optimizer, best_val_loss, is_new_bes
         
 def train(args):
     device = torch.device(f'cuda:{args.GPU_NUM}' if torch.cuda.is_available() else 'cpu')
-    torch.cuda.set_device(device)
-    print('Current cuda device: ', torch.cuda.current_device())
+    if torch.cuda.is_available():
+        torch.cuda.set_device(device)
+        print('Current cuda device: ', torch.cuda.current_device())
+    else:
+        print('Current device: ', device)
 
     model = VarNet(num_cascades=args.cascade, 
                    chans=args.chans, 
@@ -116,17 +124,17 @@ def train(args):
     for epoch in range(start_epoch, args.num_epochs):
         print(f'Epoch #{epoch:2d} ............... {args.net_name} ...............')
         
-        train_loss, train_time = train_epoch(args, epoch, model, train_loader, optimizer, loss_type)
-        val_loss, num_subjects, reconstructions, targets, inputs, val_time = validate(args, model, val_loader)
+        train_loss, train_time = train_epoch(args, epoch, model, train_loader, optimizer, loss_type, device)
+        val_loss, num_subjects, reconstructions, targets, inputs, val_time = validate(args, model, val_loader, device)
         
         val_loss_log = np.append(val_loss_log, np.array([[epoch, val_loss]]), axis=0)
         file_path = os.path.join(args.val_loss_dir, "val_loss_log")
         np.save(file_path, val_loss_log)
         print(f"loss file saved! {file_path}")
 
-        train_loss = torch.tensor(train_loss).cuda(non_blocking=True)
-        val_loss = torch.tensor(val_loss).cuda(non_blocking=True)
-        num_subjects = torch.tensor(num_subjects).cuda(non_blocking=True)
+        train_loss = torch.tensor(train_loss, device=device)
+        val_loss = torch.tensor(val_loss, device=device)
+        num_subjects = torch.tensor(num_subjects, device=device)
 
         val_loss = val_loss / num_subjects
 
